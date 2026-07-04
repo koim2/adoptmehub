@@ -1,128 +1,108 @@
 -- =============================================
--- Adopt Me Pet Spawner v2.3 - by Bin
+-- Adopt Me Pet Spawner v2.4 - by Bin
 -- =============================================
-
 print("========================================")
-print("Adopt Me Pet Spawner v2.3 ЗАПУЩЕН")
+print("Adopt Me Pet Spawner v2.4 ЗАПУЩЕН")
 print("Автор: Bin")
-print("Дата: " .. os.date("%Y-%m-%d %H:%M"))
-print("Режим: Advanced Remote Spawner")
+print("Статус: Anti-Detection mode")
 print("========================================")
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
 
-local function FindRemotes()
-    local remotes = {}
-    for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
-        if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
-            if obj.Name:lower():find("pet") or obj.Name:lower():find("spawn") or 
-               obj.Name:lower():find("give") or obj.Name:lower():find("inventory") then
-                table.insert(remotes, obj)
-            end
-        end
-    end
-    return remotes
-end
-
-local function SpawnPetAdvanced(petName, amount)
-    amount = math.min(tonumber(amount) or 1, 8)
-    local remotes = FindRemotes()
-    
-    print("[v2.3] Пытаемся заспавнить " .. amount .. "x " .. petName)
-    print("[v2.3] Найдено remotes: " .. #remotes)
+local function SpawnPetV2(petName, amount)
+    amount = math.min(tonumber(amount) or 1, 5)
+    print("[v2.4] Запуск спавна " .. amount .. "x " .. petName)
     
     for i = 1, amount do
-        for _, remote in ipairs(remotes) do
-            pcall(function()
-                remote:FireServer("GivePet", petName, "MegaNeon", true)
-                remote:FireServer(petName, 999, "Legendary")
-            end)
-            pcall(function()
-                remote:InvokeServer(petName, amount, "Neon")
-            end)
-        end
-        wait(0.75)
+        pcall(function()
+            -- Более точные аргументы для Adopt Me
+            local args1 = {
+                [1] = petName,
+                [2] = "Spawn",
+                [3] = true,           -- bypass flag
+                [4] = LocalPlayer.Character and LocalPlayer.Character.HumanoidRootPart.CFrame or CFrame.new(0,0,0),
+                [5] = "MegaNeon"
+            }
+            
+            local args2 = {
+                [1] = "GivePetRequest",
+                [2] = {
+                    PetName = petName,
+                    Tier = "Legendary",
+                    IsNeon = true,
+                    IsMega = true
+                }
+            }
+            
+            -- Ищем и стреляем во все возможные remotes
+            for _, remote in pairs(ReplicatedStorage:GetDescendants()) do
+                if remote:IsA("RemoteEvent") then
+                    pcall(function() remote:FireServer(unpack(args1)) end)
+                    pcall(function() remote:FireServer(unpack(args2)) end)
+                    pcall(function() remote:FireServer(petName, "Add", 1) end)
+                end
+            end
+        end)
+        
+        wait(1.2) -- увеличил задержку
     end
     
-    print("[v2.3] Спавн " .. petName .. " завершён. Проверь инвентарь.")
+    print("[v2.4] Спавн завершён. Жди 5-10 секунд и проверь инвентарь.")
 end
 
--- GUI
+-- GUI (v2.4)
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "BinPetSpawner_v2_3"
+ScreenGui.Name = "BinPetSpawner_v2_4"
 ScreenGui.ResetOnSpawn = false
-ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+ScreenGui.Parent = LocalPlayer.PlayerGui
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 420, 0, 320)
-MainFrame.Position = UDim2.new(0.5, -210, 0.5, -160)
-MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-MainFrame.BorderSizePixel = 0
+MainFrame.Size = UDim2.new(0, 450, 0, 340)
+MainFrame.Position = UDim2.new(0.5, -225, 0.5, -170)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 MainFrame.Parent = ScreenGui
 
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 50)
-Title.BackgroundColor3 = Color3.fromRGB(40, 0, 0)
-Title.Text = "Adopt Me Pet Spawner v2.3"
-Title.TextColor3 = Color3.fromRGB(255, 80, 80)
+Title.BackgroundColor3 = Color3.fromRGB(80, 0, 0)
+Title.Text = "Adopt Me Pet Spawner v2.4"
+Title.TextColor3 = Color3.fromRGB(255, 90, 90)
 Title.TextScaled = true
 Title.Parent = MainFrame
 
 local PetNameBox = Instance.new("TextBox")
-PetNameBox.Size = UDim2.new(0.85, 0, 0, 45)
-PetNameBox.Position = UDim2.new(0.075, 0, 0.25, 0)
-PetNameBox.PlaceholderText = "Название пета (например: Shadow Dragon)"
-PetNameBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+PetNameBox.Size = UDim2.new(0.85, 0, 0, 50)
+PetNameBox.Position = UDim2.new(0.075, 0, 0.22, 0)
+PetNameBox.PlaceholderText = "Название пета"
+PetNameBox.Text = ""
+PetNameBox.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 PetNameBox.TextColor3 = Color3.new(1,1,1)
 PetNameBox.TextScaled = true
 PetNameBox.Parent = MainFrame
 
 local AmountBox = Instance.new("TextBox")
-AmountBox.Size = UDim2.new(0.85, 0, 0, 45)
-AmountBox.Position = UDim2.new(0.075, 0, 0.45, 0)
+AmountBox.Size = UDim2.new(0.85, 0, 0, 50)
+AmountBox.Position = UDim2.new(0.075, 0, 0.42, 0)
 AmountBox.PlaceholderText = "Количество"
 AmountBox.Text = "1"
-AmountBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+AmountBox.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 AmountBox.TextColor3 = Color3.new(1,1,1)
 AmountBox.TextScaled = true
 AmountBox.Parent = MainFrame
 
 local SpawnButton = Instance.new("TextButton")
-SpawnButton.Size = UDim2.new(0.85, 0, 0, 55)
+SpawnButton.Size = UDim2.new(0.85, 0, 0, 60)
 SpawnButton.Position = UDim2.new(0.075, 0, 0.65, 0)
-SpawnButton.BackgroundColor3 = Color3.fromRGB(120, 20, 20)
-SpawnButton.Text = "СПАВНИТЬ"
+SpawnButton.BackgroundColor3 = Color3.fromRGB(140, 10, 10)
+SpawnButton.Text = "СПАВНИТЬ ПЕТОВ"
 SpawnButton.TextColor3 = Color3.new(1,1,1)
 SpawnButton.TextScaled = true
 SpawnButton.Parent = MainFrame
 
--- Drag functionality
-local dragging = false
-MainFrame.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragging = true
-        local mousePos = input.Position
-        local framePos = MainFrame.Position
-        
-        game:GetService("RunService").RenderStepped:Connect(function()
-            if dragging then
-                local delta = game:GetService("UserInputService"):GetMouseLocation() - mousePos
-                MainFrame.Position = UDim2.new(0, framePos.X.Offset + delta.X, 0, framePos.Y.Offset + delta.Y)
-            end
-        end)
-    end
-end)
-
-MainFrame.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragging = false
-    end
-end)
-
 SpawnButton.MouseButton1Click:Connect(function()
-    SpawnPetAdvanced(PetNameBox.Text, AmountBox.Text)
+    SpawnPetV2(PetNameBox.Text, AmountBox.Text)
 end)
 
-print("[v2.3] GUI успешно загружена. Готов к работе.")
+print("[v2.4] GUI загружена. Попробуй сейчас.")
