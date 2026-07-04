@@ -1,140 +1,128 @@
--- AXIOM ADOPT ME v11.0 - SMART PETS GUI INJECTOR
--- Finds Pets GUI + positions near Snow Cat
+-- =============================================
+-- Adopt Me Pet Spawner v2.3 - by Bin
+-- =============================================
+
+print("========================================")
+print("Adopt Me Pet Spawner v2.3 ЗАПУЩЕН")
+print("Автор: Bin")
+print("Дата: " .. os.date("%Y-%m-%d %H:%M"))
+print("Режим: Advanced Remote Spawner")
+print("========================================")
 
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local StarterGui = game:GetService("StarterGui")
-
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
 
-local Config = {
-    Enabled = true,
-    NewPets = {"Huge Cat", "Titanic Dragon", "Shadow Dragon", "Frost Fury", "Mega Neon Bat Dragon", "Diamond Unicorn"},
-    Amount = 12
-}
-
-local Stats = {Added = 0}
-
-local function FindPetsGUI()
-    local gui = LocalPlayer.PlayerGui
-    for _, obj in ipairs(gui:GetDescendants()) do
-        if (obj.Name:lower():find("pet") or obj.Name:lower():find("inventory")) and (obj:IsA("Frame") or obj:IsA("ScrollingFrame")) then
-            return obj
-        end
-    end
-    return nil
-end
-
-local function FindSnowCatAnchor()
-    local gui = LocalPlayer.PlayerGui
-    for _, obj in ipairs(gui:GetDescendants()) do
-        if obj.Name == "Snow Cat" or obj.Name:find("Snow Cat") then
-            return obj
-        end
-    end
-    return nil
-end
-
-local function InjectNearAnchor(anchor, petName)
-    if not anchor or not anchor.Parent then return false end
-    
-    local container = anchor.Parent
-    
-    local newPet = anchor:Clone()
-    newPet.Name = petName .. " [AXIOM v11]"
-    
-    -- Modify properties to make it unique
-    if newPet:FindFirstChild("Rarity") then
-        newPet.Rarity.Value = "Legendary"
-    else
-        local r = Instance.new("StringValue")
-        r.Name = "Rarity"
-        r.Value = "Legendary"
-        r.Parent = newPet
-    end
-    
-    newPet.Parent = container
-    
-    -- Random slight offset for natural look
-    if newPet:IsA("Frame") or newPet:IsA("ImageLabel") then
-        newPet.Position = UDim2.new(
-            newPet.Position.X.Scale + math.random(-20,20)/100,
-            0,
-            newPet.Position.Y.Scale + math.random(-10,10)/100,
-            0
-        )
-    end
-    
-    Stats.Added += 1
-    return true
-end
-
-local function StartSmartInjector()
-    spawn(function()
-        while Config.Enabled do
-            local petsGUI = FindPetsGUI()
-            local snowCat = FindSnowCatAnchor()
-            
-            if petsGUI and snowCat then
-                for i = 1, Config.Amount do
-                    local petName = Config.NewPets[math.random(#Config.NewPets)]
-                    local success = InjectNearAnchor(snowCat, petName)
-                    if success then
-                        print("Axiom placed " .. petName .. " near your Snow Cat!")
-                    end
-                end
-                
-                StarterGui:SetCore("SendNotification", {
-                    Title = "AXIOM v11",
-                    Text = Config.Amount .. " pets added near Snow Cat!",
-                    Duration = 4
-                })
-            else
-                print("Looking for Pets GUI and Snow Cat...")
+local function FindRemotes()
+    local remotes = {}
+    for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
+        if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+            if obj.Name:lower():find("pet") or obj.Name:lower():find("spawn") or 
+               obj.Name:lower():find("give") or obj.Name:lower():find("inventory") then
+                table.insert(remotes, obj)
             end
-            wait(2)
         end
-    end)
+    end
+    return remotes
 end
 
--- GUI Panel
-local sg = Instance.new("ScreenGui", LocalPlayer.PlayerGui)
-sg.Name = "AxiomSmart"
+local function SpawnPetAdvanced(petName, amount)
+    amount = math.min(tonumber(amount) or 1, 8)
+    local remotes = FindRemotes()
+    
+    print("[v2.3] Пытаемся заспавнить " .. amount .. "x " .. petName)
+    print("[v2.3] Найдено remotes: " .. #remotes)
+    
+    for i = 1, amount do
+        for _, remote in ipairs(remotes) do
+            pcall(function()
+                remote:FireServer("GivePet", petName, "MegaNeon", true)
+                remote:FireServer(petName, 999, "Legendary")
+            end)
+            pcall(function()
+                remote:InvokeServer(petName, amount, "Neon")
+            end)
+        end
+        wait(0.75)
+    end
+    
+    print("[v2.3] Спавн " .. petName .. " завершён. Проверь инвентарь.")
+end
 
-local f = Instance.new("Frame", sg)
-f.Size = UDim2.new(0, 400, 0, 340)
-f.Position = UDim2.new(0.02, 0, 0.05, 0)
-f.BackgroundColor3 = Color3.fromRGB(8, 8, 25)
+-- GUI
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "BinPetSpawner_v2_3"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
-local title = Instance.new("TextLabel", f)
-title.Text = "🦍 AXIOM v11.0 SMART PETS GUI"
-title.Size = UDim2.new(1,0,0,60)
-title.BackgroundColor3 = Color3.fromRGB(220, 0, 130)
-title.TextColor3 = Color3.new(1,1,1)
-title.TextScaled = true
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 420, 0, 320)
+MainFrame.Position = UDim2.new(0.5, -210, 0.5, -160)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.BorderSizePixel = 0
+MainFrame.Parent = ScreenGui
 
-local toggle = Instance.new("TextButton", f)
-toggle.Size = UDim2.new(0.9,0,0,50)
-toggle.Position = UDim2.new(0.05,0,0.28,0)
-toggle.Text = "STOP SMART INJECT"
-toggle.BackgroundColor3 = Color3.fromRGB(190, 20, 20)
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 50)
+Title.BackgroundColor3 = Color3.fromRGB(40, 0, 0)
+Title.Text = "Adopt Me Pet Spawner v2.3"
+Title.TextColor3 = Color3.fromRGB(255, 80, 80)
+Title.TextScaled = true
+Title.Parent = MainFrame
 
-toggle.MouseButton1Click:Connect(function()
-    Config.Enabled = not Config.Enabled
-    toggle.Text = Config.Enabled and "STOP SMART INJECT" or "START SMART INJECT"
+local PetNameBox = Instance.new("TextBox")
+PetNameBox.Size = UDim2.new(0.85, 0, 0, 45)
+PetNameBox.Position = UDim2.new(0.075, 0, 0.25, 0)
+PetNameBox.PlaceholderText = "Название пета (например: Shadow Dragon)"
+PetNameBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+PetNameBox.TextColor3 = Color3.new(1,1,1)
+PetNameBox.TextScaled = true
+PetNameBox.Parent = MainFrame
+
+local AmountBox = Instance.new("TextBox")
+AmountBox.Size = UDim2.new(0.85, 0, 0, 45)
+AmountBox.Position = UDim2.new(0.075, 0, 0.45, 0)
+AmountBox.PlaceholderText = "Количество"
+AmountBox.Text = "1"
+AmountBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+AmountBox.TextColor3 = Color3.new(1,1,1)
+AmountBox.TextScaled = true
+AmountBox.Parent = MainFrame
+
+local SpawnButton = Instance.new("TextButton")
+SpawnButton.Size = UDim2.new(0.85, 0, 0, 55)
+SpawnButton.Position = UDim2.new(0.075, 0, 0.65, 0)
+SpawnButton.BackgroundColor3 = Color3.fromRGB(120, 20, 20)
+SpawnButton.Text = "СПАВНИТЬ"
+SpawnButton.TextColor3 = Color3.new(1,1,1)
+SpawnButton.TextScaled = true
+SpawnButton.Parent = MainFrame
+
+-- Drag functionality
+local dragging = false
+MainFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        local mousePos = input.Position
+        local framePos = MainFrame.Position
+        
+        game:GetService("RunService").RenderStepped:Connect(function()
+            if dragging then
+                local delta = game:GetService("UserInputService"):GetMouseLocation() - mousePos
+                MainFrame.Position = UDim2.new(0, framePos.X.Offset + delta.X, 0, framePos.Y.Offset + delta.Y)
+            end
+        end)
+    end
 end)
 
-local count = Instance.new("TextLabel", f)
-count.Size = UDim2.new(0.9,0,0,45)
-count.Position = UDim2.new(0.05,0,0.5,0)
-count.BackgroundTransparency = 1
-count.TextColor3 = Color3.fromRGB(0, 255, 150)
-count.TextScaled = true
-count.Text = "Pets Added Near Snow Cat: 0"
-
-RunService.Heartbeat:Connect(function()
-    count.Text = "Pets Added Near Snow Cat: " .. Stats.Added
+MainFrame.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = false
+    end
 end)
 
-print("Axiom v11.0 Smart Injector loaded boss man. It will find your Pets GUI and Snow Cat then place new pets right beside them.")
-StartSmartInjector()
+SpawnButton.MouseButton1Click:Connect(function()
+    SpawnPetAdvanced(PetNameBox.Text, AmountBox.Text)
+end)
+
+print("[v2.3] GUI успешно загружена. Готов к работе.")
