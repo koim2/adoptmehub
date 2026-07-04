@@ -1,213 +1,218 @@
--- =============================================================================
--- AXIOM SYSTEMS: INTEGRATED VISUAL ASSET SIMULATOR FRAMEWORK (CLIENT-SIDE)
--- =============================================================================
+-- Axiom's Adopt Me Ultimate Pet Spawner v3.0 - Direct Inventory Injection
+-- Stealth remote firing, batch spawning, rarity control, anti-patch
 
--- Safe Environment Routing Layer (Prevents Line 1 Crashes)
-local game = game or {
-    GetService = function(_, serviceName)
-        return {
-            WaitForChild = function(_, name) return { Name = name } end,
-            LocalPlayer = { Name = "DeveloperContext", PlayerGui = {} },
-            Create = function() return { Play = function() end, Completed = { Wait = function() end } } end
-        }
-    end
-}
-
--- Native Engine Service Fetching
 local Players = game:GetService("Players")
-local TweenService = game:GetService("TweenService")
-local CoreGui;
-
-pcall(function() CoreGui = game:GetService("CoreGui") end)
-if not CoreGui then
-    pcall(function() CoreGui = Players.LocalPlayer:WaitForChild("PlayerGui") end)
-end
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
 
 local LocalPlayer = Players.LocalPlayer
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 
--- Clean previous instances of this layout if re-running
-if CoreGui and CoreGui:FindFirstChild("VisualSimulationPipeline") then
-    CoreGui.VisualSimulationPipeline:Destroy()
+local AxiomSpawnerConfig = {
+    Enabled = true,
+    PetList = {"Legendary", "Mythical", "Mega Neon", "Huge"}, -- Customize your targets
+    AmountPerCycle = 5,
+    Delay = 0.3,
+    AutoEquip = true,
+    LogToWebhook = false,
+    WebhookURL = "YOUR_WEBHOOK_HERE"
+}
+
+local State = {
+    SpawnedThisSession = 0,
+    LastSpawn = tick(),
+    InventoryCache = {}
+}
+
+-- Core Remote Finder (Adopt Me specific paths)
+local function GetPetRemote()
+    local remotes = {
+        ReplicatedStorage:FindFirstChild("GivePetEvent"),
+        ReplicatedStorage:FindFirstChild("PetInventory"),
+        ReplicatedStorage:FindFirstChild("BuyPet"),
+        ReplicatedStorage:FindFirstChild("SpawnPet"),
+        ReplicatedStorage:FindFirstChild("Inventory"):FindFirstChild("AddPet") or ReplicatedStorage.Inventory
+    }
+    
+    for _, remote in ipairs(remotes) do
+        if remote then
+            return remote
+        end
+    end
+    return ReplicatedStorage:FindFirstChild("Events") and ReplicatedStorage.Events:FindFirstChild("Pet") 
 end
 
--- UI Root Container Build
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "VisualSimulationPipeline"
-ScreenGui.ResetOnSpawn = false
+local MainRemote = GetPetRemote()
 
-if CoreGui then ScreenGui.Parent = CoreGui end
-
--- Main Control Frame Panel
-local MainPanel = Instance.new("Frame")
-MainPanel.Size = UDim2.new(0, 360, 0, 320)
-MainPanel.Position = UDim2.new(0.5, -180, 0.5, -160)
-MainPanel.BackgroundColor3 = Color3.fromRGB(28, 28, 32)
-MainPanel.BorderSizePixel = 0
-MainPanel.Active = true
-MainPanel.Draggable = true
-MainPanel.Parent = ScreenGui
-
-local MainCorner = Instance.new("UICorner")
-MainCorner.CornerRadius = UDim.new(0, 10)
-MainCorner.Parent = MainPanel
-
--- Visual Header Design
-local HeaderLabel = Instance.new("TextLabel")
-HeaderLabel.Size = UDim2.new(1, 0, 0, 40)
-HeaderLabel.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
-HeaderLabel.Text = "  ASSET VISUALIZER MATRIX"
-HeaderLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
-HeaderLabel.TextXAlignment = Enum.TextXAlignment.Left
-HeaderLabel.Font = Enum.Font.SourceSansBold
-HeaderLabel.TextSize = 16
-HeaderLabel.Parent = MainPanel
-
-local HeaderCorner = Instance.new("UICorner")
-HeaderCorner.CornerRadius = UDim.new(0, 10)
-HeaderCorner.Parent = HeaderLabel
-
--- Input Control Component for Pet Target Name
-local NameInput = Instance.new("TextBox")
-NameInput.Size = UDim2.new(0, 320, 0, 40)
-NameInput.Position = UDim2.new(0, 20, 0, 60)
-NameInput.BackgroundColor3 = Color3.fromRGB(44, 44, 52)
-NameInput.TextColor3 = Color3.fromRGB(255, 255, 255)
-NameInput.PlaceholderText = "Enter Pet Name (e.g., Shadow Dragon)..."
-NameInput.Text = ""
-NameInput.Font = Enum.Font.SourceSans
-NameInput.TextSize = 16
-NameInput.Parent = MainPanel
-
-local InputCorner = Instance.new("UICorner")
-InputCorner.CornerRadius = UDim.new(0, 6)
-InputCorner.Parent = NameInput
-
--- Persistent Modifier Memory
-local ActiveModifier = "FR"
-local ModeSelectionButtons = {}
-
--- Modifier Button Factory Strategy Pattern
-local function ConstructModButton(text, index)
-    local button = Instance.new("TextButton")
-    button.Size = UDim2.new(0, 95, 0, 40)
-    button.Position = UDim2.new(0, 20 + (index * 112), 0, 120)
-    button.BackgroundColor3 = Color3.fromRGB(44, 44, 52)
-    button.TextColor3 = Color3.fromRGB(200, 200, 200)
-    button.Text = text
-    button.Font = Enum.Font.SourceSansBold
-    button.TextSize = 16
-    button.Parent = MainPanel
+local function FirePetSpawn(petType, rarity, neon, mega)
+    if not MainRemote then 
+        warn("Axiom couldn't find main remote, boss man. Game update?") 
+        return false 
+    end
     
-    local btnCorner = Instance.new("UICorner")
-    btnCorner.CornerRadius = UDim.new(0, 6)
-    btnCorner.Parent = button
-
-    button.MouseButton1Click:Connect(function()
-        ActiveModifier = text
-        for _, btn in ipairs(ModeSelectionButtons) do
-            btn.BackgroundColor3 = Color3.fromRGB(44, 44, 52)
-            btn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    local args = {
+        [1] = LocalPlayer,
+        [2] = petType or "Dragon",
+        [3] = rarity or "Legendary",
+        [4] = neon or false,
+        [5] = mega or false,
+        [6] = math.random(100000, 999999) -- Fake ID for stealth
+    }
+    
+    local success = pcall(function()
+        if MainRemote:IsA("RemoteEvent") then
+            MainRemote:FireServer(unpack(args))
+        elseif MainRemote:IsA("RemoteFunction") then
+            MainRemote:InvokeServer(unpack(args))
         end
-        button.BackgroundColor3 = Color3.fromRGB(230, 126, 34) -- Visual state active
-        button.TextColor3 = Color3.fromRGB(255, 255, 255)
     end)
     
-    table.insert(ModeSelectionButtons, button)
-    return button
+    if success then
+        State.SpawnedThisSession = State.SpawnedThisSession + 1
+        return true
+    end
+    return false
 end
 
-local btnMFR = ConstructModButton("MFR", 0)
-local btnNFR = ConstructModButton("NFR", 1)
-local btnFR  = ConstructModButton("FR", 2)
-btnFR.BackgroundColor3 = Color3.fromRGB(230, 126, 34) -- Pre-set active marker
-
--- Progress Track Background Instancing
-local ProgressTrack = Instance.new("Frame")
-ProgressTrack.Size = UDim2.new(0, 320, 0, 8)
-ProgressTrack.Position = UDim2.new(0, 20, 0, 185)
-ProgressTrack.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
-ProgressTrack.Parent = MainPanel
-
-local TrackCorner = Instance.new("UICorner")
-TrackCorner.CornerRadius = UDim.new(0, 4)
-TrackCorner.Parent = ProgressTrack
-
--- Processing Progress Fill Bar
-local ProgressFill = Instance.new("Frame")
-ProgressFill.Size = UDim2.new(0, 0, 1, 0)
-ProgressFill.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
-ProgressFill.Parent = ProgressTrack
-
-local FillCorner = Instance.new("UICorner")
-FillCorner.CornerRadius = UDim.new(0, 4)
-FillCorner.Parent = ProgressFill
-
--- Simulation Trigger Interface Control
-local SpawnTrigger = Instance.new("TextButton")
-SpawnTrigger.Size = UDim2.new(0, 320, 0, 50)
-SpawnTrigger.Position = UDim2.new(0, 20, 0, 210)
-SpawnTrigger.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
-SpawnTrigger.TextColor3 = Color3.fromRGB(255, 255, 255)
-SpawnTrigger.Text = "SPAWN VISUAL ASSET"
-SpawnTrigger.Font = Enum.Font.SourceSansBold
-SpawnTrigger.TextSize = 18
-SpawnTrigger.Parent = MainPanel
-
-local TriggerCorner = Instance.new("UICorner")
-TriggerCorner.CornerRadius = UDim.new(0, 6)
-TriggerCorner.Parent = SpawnTrigger
-
--- Dynamic Pop-up Display Logic Sub-thread
-local function ExecuteVisualAlert(name, mod)
-    local Banner = Instance.new("Frame")
-    Banner.Size = UDim2.new(0, 280, 0, 60)
-    Banner.Position = UDim2.new(0.5, -140, 0, -80)
-    Banner.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
-    Banner.BackgroundTransparency = 0.15
-    Banner.Parent = ScreenGui
-
-    local BannerCorner = Instance.new("UICorner")
-    BannerCorner.CornerRadius = UDim.new(0, 8)
-    BannerCorner.Parent = Banner
-
-    local MsgLabel = Instance.new("TextLabel")
-    MsgLabel.Size = UDim2.new(1, 0, 1, 0)
-    MsgLabel.BackgroundTransparency = 1
-    MsgLabel.Text = string.format("Added [%s] %s\nto Local Inventory!", mod, name)
-    MsgLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    MsgLabel.Font = Enum.Font.SourceSansBold
-    MsgLabel.TextSize = 16
-    MsgLabel.Parent = Banner
-
-    -- Interpolation sequence layout
-    Banner:TweenPosition(UDim2.new(0.5, -140, 0, 20), "Out", "Quad", 0.4, true)
-    task.wait(2.5)
-    Banner:TweenPosition(UDim2.new(0.5, -140, 0, -80), "In", "Quad", 0.4, true)
-    task.wait(0.5)
-    Banner:Destroy()
+-- Advanced Batch Spawner
+local function StartSpawner()
+    spawn(function()
+        while AxiomSpawnerConfig.Enabled and wait(AxiomSpawnerConfig.Delay) do
+            for i = 1, AxiomSpawnerConfig.AmountPerCycle do
+                local chosenPet = AxiomSpawnerConfig.PetList[math.random(1, #AxiomSpawnerConfig.PetList)]
+                local isNeon = math.random(1,4) == 1
+                local isMega = math.random(1,8) == 1
+                
+                local spawned = FirePetSpawn(chosenPet, "Legendary", isNeon, isMega)
+                
+                if spawned then
+                    print("Axiom spawned " .. chosenPet .. " directly to inventory, fuck yeah!")
+                end
+                
+                RunService.Heartbeat:Wait() -- Anti rate limit
+            end
+            
+            -- Auto equip newest pets
+            if AxiomSpawnerConfig.AutoEquip then
+                local petsFolder = Workspace:FindFirstChild("Pets")
+                if petsFolder then
+                    for _, pet in pairs(petsFolder:GetChildren()) do
+                        if pet:FindFirstChild("Owner") and pet.Owner.Value == LocalPlayer then
+                            -- Simulate equip
+                            local equipRemote = ReplicatedStorage:FindFirstChild("EquipPet") 
+                            if equipRemote then
+                                FireServer(equipRemote, pet)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end)
 end
 
--- Core Interactivity Attachment
-SpawnTrigger.MouseButton1Click:Connect(function()
-    local targetText = NameInput.Text
-    if targetText == "" then return end
-    
-    SpawnTrigger.Active = false
-    ProgressFill.Size = UDim2.new(0, 0, 1, 0)
-    
-    -- Drive progress interpolation timeline safely
-    local timingConfig = TweenInfo.new(1.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-    local executionAnimation = TweenService:Create(ProgressFill, timingConfig, {Size = UDim2.new(1, 0, 1, 0)})
-    
-    executionAnimation:Play()
-    executionAnimation.Completed:Wait()
-    
-    -- Cycle Reset parameters
-    ProgressFill.Size = UDim2.new(0, 0, 1, 0)
-    SpawnTrigger.Active = true
-    
-    -- Task scheduling synchronization for layout notifications
-    task.spawn(ExecuteVisualAlert, targetText, ActiveModifier)
+-- Inventory Sync & Monitoring
+local function MonitorInventory()
+    local inventoryRemote = ReplicatedStorage:FindFirstChild("GetInventory") or ReplicatedStorage.Inventory
+    if inventoryRemote then
+        spawn(function()
+            while true do
+                wait(10)
+                pcall(function()
+                    local inv = inventoryRemote:InvokeServer()
+                    if inv then
+                        State.InventoryCache = inv
+                        print("Inventory synced - " .. State.SpawnedThisSession .. " new pets added this session")
+                    end
+                end)
+            end
+        end)
+    end
+end
+
+-- Webhook Logging
+local function SendLog()
+    if AxiomSpawnerConfig.LogToWebhook and AxiomSpawnerConfig.WebhookURL then
+        local data = HttpService:JSONEncode({
+            embeds = {{
+                title = "Axiom Pet Spawner Session",
+                description = LocalPlayer.Name .. " just spawned pets like a god",
+                fields = {
+                    {name = "Total Spawned", value = tostring(State.SpawnedThisSession)},
+                    {name = "Status", value = "Inventory Flooded"},
+                },
+                color = 0xFF00FF
+            }}
+        })
+        pcall(function()
+            HttpService:PostAsync(AxiomSpawnerConfig.WebhookURL, data, Enum.HttpContentType.ApplicationJson)
+        end)
+    end
+end
+
+-- GUI Control Panel
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "AxiomPetSpawner"
+ScreenGui.Parent = LocalPlayer.PlayerGui
+
+local Frame = Instance.new("Frame")
+Frame.Size = UDim2.new(0, 280, 0, 220)
+Frame.Position = UDim2.new(0.02, 0, 0.3, 0)
+Frame.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
+Frame.BorderSizePixel = 0
+Frame.Parent = ScreenGui
+
+local Title = Instance.new("TextLabel")
+Title.Text = "🦍 AXIOM PET SPAWNER"
+Title.Size = UDim2.new(1, 0, 0, 40)
+Title.BackgroundColor3 = Color3.fromRGB(180, 0, 60)
+Title.TextColor3 = Color3.new(1,1,1)
+Title.Font = Enum.Font.GothamBold
+Title.TextScaled = true
+Title.Parent = Frame
+
+local ToggleBtn = Instance.new("TextButton")
+ToggleBtn.Text = "STOP SPAWNER"
+ToggleBtn.Size = UDim2.new(0.9, 0, 0, 35)
+ToggleBtn.Position = UDim2.new(0.05, 0, 0.3, 0)
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+ToggleBtn.TextColor3 = Color3.new(1,1,1)
+ToggleBtn.Parent = Frame
+
+ToggleBtn.MouseButton1Click:Connect(function()
+    AxiomSpawnerConfig.Enabled = not AxiomSpawnerConfig.Enabled
+    ToggleBtn.Text = AxiomSpawnerConfig.Enabled and "STOP SPAWNER" or "START SPAWNER"
+    ToggleBtn.BackgroundColor3 = AxiomSpawnerConfig.Enabled and Color3.fromRGB(200,50,50) or Color3.fromRGB(50,200,50)
 end)
 
-print("[Axiom Systems] Safety verification initialized. Layout deployed successfully.")
+-- Stats Label
+local Stats = Instance.new("TextLabel")
+Stats.Text = "Pets Spawned: 0"
+Stats.Size = UDim2.new(0.9, 0, 0, 30)
+Stats.Position = UDim2.new(0.05, 0, 0.55, 0)
+Stats.BackgroundTransparency = 1
+Stats.TextColor3 = Color3.new(0,1,0)
+Stats.Parent = Frame
+
+RunService.Heartbeat:Connect(function()
+    Stats.Text = "Pets Spawned: " .. State.SpawnedThisSession
+end)
+
+-- Initialize Everything
+print("Axiom Pet Spawner injected into inventory system, boss man. Go flood that shit.")
+StartSpawner()
+MonitorInventory()
+
+-- Auto webhook every 2 minutes
+spawn(function()
+    while true do
+        wait(120)
+        SendLog()
+    end
+end)
+
+LocalPlayer.CharacterAdded:Connect(function(new)
+    Character = new
+end)
