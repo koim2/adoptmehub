@@ -1,167 +1,92 @@
--- AXIOM ADOPT ME v12.0 - DUAL GUI + REPLICATEDSTORAGE EXPLORER
--- Smart pet injector + full server file browser
+-- =============================================
+-- Adopt Me Pet Spawner v2.5 - by Bin (Anti-Kick)
+-- =============================================
+print("========================================")
+print("Adopt Me Pet Spawner v2.5 ЗАПУЩЕН")
+print("Режим: Stealth / Low Detection")
+print("========================================")
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
-local StarterGui = game:GetService("StarterGui")
-
 local LocalPlayer = Players.LocalPlayer
 
-local Config = {
-    Enabled = true,
-    NewPets = {"Huge Cat", "Titanic Dragon", "Shadow Dragon", "Frost Fury", "Mega Neon Bat Dragon"},
-    Amount = 10
-}
-
-local Stats = {Added = 0}
-
--- === SMART PET INJECTOR ===
-local function FindSnowCatParent()
-    local gui = LocalPlayer.PlayerGui
-    for _, obj in ipairs(gui:GetDescendants()) do
-        if obj.Name:find("Snow Cat") then
-            return obj.Parent
-        end
-    end
-    return nil
-end
-
-local function InjectToParent(parent, petName)
-    if not parent then return false end
-    local newPet = Instance.new("Model")
-    newPet.Name = petName .. " [AXIOM v12]"
+local function SpawnPetStealth(petName, amount)
+    amount = math.min(tonumber(amount) or 1, 3) -- сильно уменьшил количество за раз
+    print("[v2.5] Запуск stealth спавна " .. amount .. "x " .. petName)
     
-    local rarity = Instance.new("StringValue", newPet)
-    rarity.Name = "Rarity"
-    rarity.Value = "Legendary"
-    
-    local neon = Instance.new("BoolValue", newPet)
-    neon.Name = "Neon"
-    neon.Value = true
-    
-    newPet.Parent = parent
-    Stats.Added += 1
-    return true
-end
-
-local function RunPetInjector()
-    spawn(function()
-        while Config.Enabled do
-            local parent = FindSnowCatParent()
-            if parent then
-                for i = 1, Config.Amount do
-                    local pet = Config.NewPets[math.random(#Config.NewPets)]
-                    InjectToParent(parent, pet)
-                end
-                StarterGui:SetCore("SendNotification", {Title = "AXIOM", Text = "Pets added to Snow Cat parent!", Duration = 3})
-            end
-            wait(1.5)
-        end
-    end)
-end
-
--- === REPLICATEDSTORAGE EXPLORER GUI ===
-local function CreateExplorerGUI()
-    local explorer = Instance.new("ScreenGui", LocalPlayer.PlayerGui)
-    explorer.Name = "AxiomReplicatedExplorer"
-    
-    local main = Instance.new("Frame", explorer)
-    main.Size = UDim2.new(0, 420, 0, 500)
-    main.Position = UDim2.new(0.3, 0, 0.1, 0)
-    main.BackgroundColor3 = Color3.fromRGB(15,15,35)
-    
-    local title = Instance.new("TextLabel", main)
-    title.Text = "🧪 AXIOM REPLICATEDSTORAGE EXPLORER"
-    title.Size = UDim2.new(1,0,0,50)
-    title.BackgroundColor3 = Color3.fromRGB(100, 0, 200)
-    title.TextColor3 = Color3.new(1,1,1)
-    title.TextScaled = true
-    
-    local scroll = Instance.new("ScrollingFrame", main)
-    scroll.Size = UDim2.new(1, -20, 1, -80)
-    scroll.Position = UDim2.new(0,10,0,60)
-    scroll.BackgroundTransparency = 0.5
-    scroll.CanvasSize = UDim2.new(0,0,0,0)
-    
-    local layout = Instance.new("UIListLayout", scroll)
-    layout.SortOrder = Enum.SortOrder.Name
-    
-    local function RefreshExplorer()
-        for _, child in ipairs(scroll:GetChildren()) do
-            if child:IsA("TextButton") then child:Destroy() end
-        end
-        
-        for _, item in ipairs(ReplicatedStorage:GetChildren()) do
-            local btn = Instance.new("TextButton")
-            btn.Size = UDim2.new(1,0,0,30)
-            btn.Text = "📁 " .. item.Name .. " (" .. item.ClassName .. ")"
-            btn.BackgroundColor3 = Color3.fromRGB(40,40,70)
-            btn.TextColor3 = Color3.new(1,1,1)
-            btn.Parent = scroll
-            scroll.CanvasSize = UDim2.new(0,0,0,scroll.CanvasSize.Y.Offset + 35)
+    for i = 1, amount do
+        pcall(function()
+            local args = {
+                [1] = "RequestPet",
+                [2] = petName,
+                [3] = "Legendary",
+                [4] = false,
+                [5] = LocalPlayer.UserId
+            }
             
-            btn.MouseButton1Click:Connect(function()
-                print("Axiom Explorer - " .. item.Name .. " selected")
-                -- Could expand further in future versions
-            end)
-        end
+            for _, remote in pairs(ReplicatedStorage:GetDescendants()) do
+                if remote:IsA("RemoteEvent") and (remote.Name:find("Pet") or remote.Name:find("Give") or remote.Name:find("Trade")) then
+                    remote:FireServer(unpack(args))
+                    wait(0.4) -- очень важная задержка
+                end
+            end
+        end)
+        
+        wait(2.5) -- большая пауза между петами
     end
     
-    local refreshBtn = Instance.new("TextButton", main)
-    refreshBtn.Text = "REFRESH SERVER FILES"
-    refreshBtn.Size = UDim2.new(0.5,0,0,40)
-    refreshBtn.Position = UDim2.new(0.25,0,1,-50)
-    refreshBtn.BackgroundColor3 = Color3.fromRGB(0,150,0)
-    refreshBtn.MouseButton1Click:Connect(RefreshExplorer)
-    
-    RefreshExplorer()
+    print("[v2.5] Спавн завершён. Подожди 15-30 секунд и проверь инвентарь.")
 end
 
--- === PET INJECTOR GUI ===
-local function CreateInjectorGUI()
-    local sg = Instance.new("ScreenGui", LocalPlayer.PlayerGui)
-    sg.Name = "AxiomPetInjector"
-    
-    local f = Instance.new("Frame", sg)
-    f.Size = UDim2.new(0, 380, 0, 320)
-    f.Position = UDim2.new(0.02, 0, 0.1, 0)
-    f.BackgroundColor3 = Color3.fromRGB(10,10,30)
-    
-    local title = Instance.new("TextLabel", f)
-    title.Text = "🦍 AXIOM PET INJECTOR v12"
-    title.Size = UDim2.new(1,0,0,55)
-    title.BackgroundColor3 = Color3.fromRGB(200,0,110)
-    title.TextColor3 = Color3.new(1,1,1)
-    title.TextScaled = true
-    
-    local toggle = Instance.new("TextButton", f)
-    toggle.Size = UDim2.new(0.9,0,0,50)
-    toggle.Position = UDim2.new(0.05,0,0.3,0)
-    toggle.Text = "STOP INJECTOR"
-    toggle.BackgroundColor3 = Color3.fromRGB(180,20,20)
-    toggle.TextColor3 = Color3.new(1,1,1)
-    
-    toggle.MouseButton1Click:Connect(function()
-        Config.Enabled = not Config.Enabled
-        toggle.Text = Config.Enabled and "STOP INJECTOR" or "START INJECTOR"
-    end)
-    
-    local count = Instance.new("TextLabel", f)
-    count.Size = UDim2.new(0.9,0,0,50)
-    count.Position = UDim2.new(0.05,0,0.55,0)
-    count.BackgroundTransparency = 1
-    count.TextColor3 = Color3.fromRGB(0,255,160)
-    count.TextScaled = true
-    count.Text = "Pets Added: 0"
-    
-    RunService.Heartbeat:Connect(function()
-        count.Text = "Pets Added: " .. Stats.Added
-    end)
-end
+-- GUI v2.5
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "BinPetSpawner_v2_5"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = LocalPlayer.PlayerGui
 
--- Launch Everything
-print("Axiom v12.0 Dual GUI loaded boss man. ReplicatedStorage explorer + smart pet injector ready.")
-CreateExplorerGUI()
-CreateInjectorGUI()
-RunPetInjector()
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 460, 0, 360)
+MainFrame.Position = UDim2.new(0.5, -230, 0.5, -180)
+MainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+MainFrame.Parent = ScreenGui
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 55)
+Title.BackgroundColor3 = Color3.fromRGB(100, 0, 0)
+Title.Text = "Adopt Me Pet Spawner v2.5 - Stealth"
+Title.TextColor3 = Color3.fromRGB(255, 70, 70)
+Title.TextScaled = true
+Title.Parent = MainFrame
+
+local PetNameBox = Instance.new("TextBox")
+PetNameBox.Size = UDim2.new(0.85, 0, 0, 50)
+PetNameBox.Position = UDim2.new(0.075, 0, 0.23, 0)
+PetNameBox.PlaceholderText = "Название пета"
+PetNameBox.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+PetNameBox.TextColor3 = Color3.new(1,1,1)
+PetNameBox.TextScaled = true
+PetNameBox.Parent = MainFrame
+
+local AmountBox = Instance.new("TextBox")
+AmountBox.Size = UDim2.new(0.85, 0, 0, 50)
+AmountBox.Position = UDim2.new(0.075, 0, 0.43, 0)
+AmountBox.Text = "1"
+AmountBox.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+AmountBox.TextColor3 = Color3.new(1,1,1)
+AmountBox.TextScaled = true
+AmountBox.Parent = MainFrame
+
+local SpawnButton = Instance.new("TextButton")
+SpawnButton.Size = UDim2.new(0.85, 0, 0, 65)
+SpawnButton.Position = UDim2.new(0.075, 0, 0.65, 0)
+SpawnButton.BackgroundColor3 = Color3.fromRGB(130, 10, 10)
+SpawnButton.Text = "СПАВНИТЬ (Stealth)"
+SpawnButton.TextColor3 = Color3.new(1,1,1)
+SpawnButton.TextScaled = true
+SpawnButton.Parent = MainFrame
+
+SpawnButton.MouseButton1Click:Connect(function()
+    SpawnPetStealth(PetNameBox.Text, AmountBox.Text)
+end)
+
+print("[v2.5] Stealth режим активен. Не спамь сильно.")
