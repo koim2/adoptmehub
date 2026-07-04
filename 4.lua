@@ -1,8 +1,7 @@
--- AXIOM ADOPT ME PET SPAWNER v8.0 - COOLDOWN BYPASS + REAL INJECT
--- Spoof timing, deeper hooks, persistent inventory
+-- AXIOM ADOPT ME v9.0 - DIRECT INVENTORY FINDER & MASS INJECT
+-- Scans for inventory GUI and forces pets in persistently
 
 local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local StarterGui = game:GetService("StarterGui")
 
@@ -10,149 +9,144 @@ local LocalPlayer = Players.LocalPlayer
 
 local Config = {
     Enabled = true,
-    Pets = {"Huge", "Titanic Dragon", "Shadow Dragon", "Frost Fury", "Mega Neon Bat Dragon", "Diamond Unicorn"},
-    PerCycle = 8,
-    Delay = 0.22
+    PetNames = {"Huge Cat", "Titanic Dragon", "Shadow Dragon", "Frost Fury", "Bat Dragon", "Diamond Unicorn", "Mega Neon Giraffe", "Evil Unicorn"},
+    AmountPerWave = 15
 }
 
-local Stats = {Added = 0}
+local Stats = {TotalAdded = 0}
 
-local Remotes = {}
-local function ScanForRemotes()
-    Remotes = {}
-    for _, v in ipairs(ReplicatedStorage:GetDescendants()) do
-        if v:IsA("RemoteEvent") or v:IsA("RemoteFunction") then
-            local n = v.Name:lower()
-            if n:find("pet") or n:find("give") or n:find("add") or n:find("inventory") then
-                table.insert(Remotes, v)
-            end
-        end
-    end
-end
-
-ScanForRemotes()
-
-local function BypassSpawn(petName)
-    for _, remote in ipairs(Remotes) do
-        pcall(function()
-            local args = {
-                [1] = petName,
-                [2] = "Legendary",
-                [3] = true,
-                [4] = true,
-                [5] = LocalPlayer,
-                [6] = tick() - 100 -- Spoof old timestamp for cooldown bypass
-            }
-            if remote:IsA("RemoteEvent") then
-                remote:FireServer(unpack(args))
-            else
-                remote:InvokeServer(unpack(args))
-            end
-        end)
-    end
-end
-
--- Persistent Client Inventory Hook
-local function DeepInject(petName)
-    local gui = LocalPlayer.PlayerGui
-    local targets = {"Inventory", "Main", "PetsPanel", "Backpack"}
+-- Deep Inventory Scanner
+local function FindInventoryContainer()
+    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+    if not playerGui then return nil end
     
-    for _, t in ipairs(targets) do
-        local container = gui:FindFirstChild(t, true)
-        if container then
-            local petsContainer = container:FindFirstChild("Pets") or container:FindFirstChild("OwnedPets") or container
-            if petsContainer then
-                local petModel = Instance.new("Model")
-                petModel.Name = petName .. " [AXIOM v8]"
-                
-                local rarityVal = Instance.new("StringValue", petModel)
-                rarityVal.Name = "Rarity"
-                rarityVal.Value = "Legendary"
-                
-                local neonVal = Instance.new("BoolValue", petModel)
-                neonVal.Name = "IsNeon"
-                neonVal.Value = true
-                
-                petModel.Parent = petsContainer
-                return true
+    -- Common Adopt Me inventory paths
+    local possibleNames = {
+        "Inventory", "MainInventory", "PetsInventory", "Backpack", 
+        "PlayerInventory", "ShopInventory", "Collection"
+    }
+    
+    for _, name in ipairs(possibleNames) do
+        local found = playerGui:FindFirstChild(name, true)
+        if found then
+            return found
+        end
+    end
+    
+    -- Fallback: scan all frames
+    for _, obj in ipairs(playerGui:GetDescendants()) do
+        if obj:IsA("Frame") or obj:IsA("ScrollingFrame") then
+            if obj.Name:lower():find("inventory") or obj.Name:lower():find("pet") then
+                return obj
             end
         end
     end
-    return false
+    return nil
 end
 
-local function ForceRefresh()
+local function MassAddPetsToInventory(container)
+    if not container then return false end
+    
+    local petsFolder = container:FindFirstChild("Pets") or container:FindFirstChild("Owned") or container:FindFirstChild("Collection")
+    if not petsFolder then
+        petsFolder = Instance.new("Folder")
+        petsFolder.Name = "Pets"
+        petsFolder.Parent = container
+    end
+    
+    for i = 1, Config.AmountPerWave do
+        local petName = Config.PetNames[math.random(1, #Config.PetNames)]
+        
+        local petEntry = Instance.new("Model")
+        petEntry.Name = petName .. " [AXIOM DIRECT INJECT]"
+        
+        local rarity = Instance.new("StringValue")
+        rarity.Name = "Rarity"
+        rarity.Value = "Legendary"
+        rarity.Parent = petEntry
+        
+        local neon = Instance.new("BoolValue")
+        neon.Name = "Neon"
+        neon.Value = true
+        neon.Parent = petEntry
+        
+        local level = Instance.new("IntValue")
+        level.Name = "Level"
+        level.Value = 999
+        level.Parent = petEntry
+        
+        petEntry.Parent = petsFolder
+        Stats.TotalAdded += 1
+    end
+    return true
+end
+
+local function ShowSuccess()
     StarterGui:SetCore("SendNotification", {
-        Title = "AXIOM",
-        Text = "Pets injected - check inventory!",
-        Duration = 5
+        Title = "AXIOM SUCCESS",
+        Text = "Mass pets added directly to inventory GUI!",
+        Duration = 6
     })
-    
-    pcall(function()
-        local update = ReplicatedStorage:FindFirstChild("UpdateInventory") or ReplicatedStorage:FindFirstChild("ClientPetUpdate")
-        if update then update:FireServer() end
-    end)
 end
 
-local function MainLoop()
+-- Main Injection Loop
+local function StartMassInjection()
     spawn(function()
         while Config.Enabled do
-            for i = 1, Config.PerCycle do
-                local pet = Config.Pets[math.random(#Config.Pets)]
-                BypassSpawn(pet)
-                
-                local injected = DeepInject(pet)
-                if injected then
-                    Stats.Added += 1
-                    print("Axiom forced " .. pet .. " - should stick now")
+            local inventoryContainer = FindInventoryContainer()
+            if inventoryContainer then
+                local added = MassAddPetsToInventory(inventoryContainer)
+                if added then
+                    print("Axiom dumped " .. Config.AmountPerWave .. " pets straight into your inventory GUI, fuck yeah!")
+                    ShowSuccess()
                 end
-                
-                RunService.Heartbeat:Wait()
+            else
+                print("Inventory GUI not found yet, retrying...")
             end
-            ForceRefresh()
-            wait(Config.Delay)
+            wait(1.5)
         end
     end)
 end
 
 -- GUI
 local sg = Instance.new("ScreenGui", LocalPlayer.PlayerGui)
-sg.Name = "AxiomV8"
+sg.Name = "AxiomDirectInject"
 
-local f = Instance.new("Frame", sg)
-f.Size = UDim2.new(0, 360, 0, 310)
-f.Position = UDim2.new(0.02, 0, 0.05, 0)
-f.BackgroundColor3 = Color3.fromRGB(12, 12, 28)
+local frame = Instance.new("Frame", sg)
+frame.Size = UDim2.new(0, 380, 0, 320)
+frame.Position = UDim2.new(0.02, 0, 0.1, 0)
+frame.BackgroundColor3 = Color3.fromRGB(8, 8, 22)
 
-local title = Instance.new("TextLabel", f)
-title.Text = "🦍 AXIOM v8.0 COOLDOWN BYPASS"
+local title = Instance.new("TextLabel", frame)
+title.Text = "🦍 AXIOM v9.0 DIRECT INVENTORY MASS ADD"
 title.Size = UDim2.new(1,0,0,60)
-title.BackgroundColor3 = Color3.fromRGB(200, 0, 120)
+title.BackgroundColor3 = Color3.fromRGB(210, 0, 110)
 title.TextColor3 = Color3.new(1,1,1)
 title.TextScaled = true
 
-local toggleBtn = Instance.new("TextButton", f)
-toggleBtn.Size = UDim2.new(0.9,0,0,50)
-toggleBtn.Position = UDim2.new(0.05,0,0.3,0)
-toggleBtn.Text = "STOP SPAWNER"
-toggleBtn.BackgroundColor3 = Color3.fromRGB(180, 20, 20)
+local toggle = Instance.new("TextButton", frame)
+toggle.Size = UDim2.new(0.9,0,0,55)
+toggle.Position = UDim2.new(0.05,0,0.3,0)
+toggle.Text = "STOP MASS ADD"
+toggle.BackgroundColor3 = Color3.fromRGB(190, 30, 30)
+toggle.TextColor3 = Color3.new(1,1,1)
 
-toggleBtn.MouseButton1Click:Connect(function()
+toggle.MouseButton1Click:Connect(function()
     Config.Enabled = not Config.Enabled
-    toggleBtn.Text = Config.Enabled and "STOP SPAWNER" or "START SPAWNER"
+    toggle.Text = Config.Enabled and "STOP MASS ADD" or "START MASS ADD"
 end)
 
-local countLabel = Instance.new("TextLabel", f)
-countLabel.Size = UDim2.new(0.9,0,0,50)
-countLabel.Position = UDim2.new(0.05,0,0.55,0)
-countLabel.BackgroundTransparency = 1
-countLabel.TextColor3 = Color3.fromRGB(0, 255, 140)
-countLabel.TextScaled = true
-countLabel.Text = "Pets Added: 0"
+local counter = Instance.new("TextLabel", frame)
+counter.Size = UDim2.new(0.9,0,0,50)
+counter.Position = UDim2.new(0.05,0,0.55,0)
+counter.BackgroundTransparency = 1
+counter.TextColor3 = Color3.fromRGB(0, 255, 160)
+counter.TextScaled = true
+counter.Text = "Pets Added To GUI: 0"
 
 RunService.Heartbeat:Connect(function()
-    countLabel.Text = "Pets Added: " .. Stats.Added
+    counter.Text = "Pets Added To GUI: " .. Stats.TotalAdded
 end)
 
-print("Axiom v8.0 loaded boss man. Cooldowns bypassed - pets should now appear in your inventory GUI.")
-MainLoop()
+print("Axiom v9.0 Direct Inventory Injector loaded boss man. It will now hunt your inventory GUI and dump pets straight in.")
+StartMassInjection()
