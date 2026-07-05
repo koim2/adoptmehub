@@ -1,108 +1,55 @@
--- =============================================
--- Adopt Me Pet Spawner v2.6 - by Bin (Fixed)
--- =============================================
-print("========================================")
-print("Adopt Me Pet Spawner v2.6 ЗАПУЩЕН")
-print("Режим: Targeted Remotes")
-print("========================================")
+-- Adopt Me Simple Spawner v2.7 for Delta
+print("Adopt Me Pet Spawner v2.7 (Delta version) ЗАПУЩЕН")
 
-local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local LocalPlayer = Players.LocalPlayer
+local LocalPlayer = game.Players.LocalPlayer
 
-local function GetTargetRemotes()
-    local targets = {}
-    local folders = {"Remotes", "ClientServices", "SharedPackages", "PetSystem"}
+local function TrySpawn(petName)
+    print("[v2.7] Пробуем " .. petName)
     
-    for _, folderName in pairs(folders) do
-        local folder = ReplicatedStorage:FindFirstChild(folderName) or ReplicatedStorage
-        for _, v in pairs(folder:GetDescendants()) do
-            if v:IsA("RemoteEvent") and (v.Name:find("Pet") or v.Name:find("Trade") or v.Name:find("Give") or v.Name:find("Spawn")) then
-                table.insert(targets, v)
-            end
-        end
-    end
-    return targets
-end
-
-local function SpawnPetFixed(petName, amount)
-    amount = math.min(tonumber(amount) or 1, 2)
-    print("[v2.6] Пытаемся заспавнить " .. amount .. "x " .. petName)
+    -- Специально для Delta / новых античитов
+    local success = false
     
-    local remotes = GetTargetRemotes()
-    print("[v2.6] Найдено целевых remotes: " .. #remotes)
-    
-    for i = 1, amount do
-        for _, remote in pairs(remotes) do
+    for _, remote in pairs(ReplicatedStorage:GetDescendants()) do
+        if remote:IsA("RemoteEvent") and remote.Name == "Client" or remote.Name:find("Pet") then
             pcall(function()
-                -- Самые рабочие варианты аргументов на 2026
-                remote:FireServer({
-                    Type = "Pet",
-                    Action = "Give",
-                    PetName = petName,
-                    Tier = "Legendary",
-                    Neon = true,
-                    Mega = false
-                })
-                
-                remote:FireServer(petName, "AddToInventory", LocalPlayer)
+                remote:FireServer("SpawnPet", petName, "Legendary", true)
+                remote:FireServer({Pet = petName, Action = "Give"})
             end)
+            success = true
         end
-        wait(1.8)
     end
     
-    print("[v2.6] Попытка завершена. Проверь инвентарь через 20 секунд.")
+    if not success then
+        print("[v2.7] Не удалось найти рабочие remotes. Возможно нужен другой executor.")
+    end
 end
 
--- GUI
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "BinPetSpawner_v2_6"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.Parent = LocalPlayer.PlayerGui
+-- GUI упрощённая
+local sg = Instance.new("ScreenGui")
+sg.Parent = LocalPlayer.PlayerGui
 
-local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 460, 0, 360)
-MainFrame.Position = UDim2.new(0.5, -230, 0.5, -180)
-MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-MainFrame.Parent = ScreenGui
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 350, 0, 200)
+frame.Position = UDim2.new(0.5, -175, 0.5, -100)
+frame.BackgroundColor3 = Color3.fromRGB(30,30,30)
+frame.Parent = sg
 
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 50)
-Title.BackgroundColor3 = Color3.fromRGB(110, 0, 0)
-Title.Text = "Adopt Me Pet Spawner v2.6"
-Title.TextColor3 = Color3.fromRGB(255, 100, 100)
-Title.TextScaled = true
-Title.Parent = MainFrame
+local box = Instance.new("TextBox")
+box.Size = UDim2.new(0.9,0,0,40)
+box.Position = UDim2.new(0.05,0,0.2,0)
+box.PlaceholderText = "Shadow Dragon"
+box.Parent = frame
 
-local PetNameBox = Instance.new("TextBox")
-PetNameBox.Size = UDim2.new(0.85, 0, 0, 50)
-PetNameBox.Position = UDim2.new(0.075, 0, 0.22, 0)
-PetNameBox.PlaceholderText = "Shadow Dragon / Frost Fury"
-PetNameBox.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-PetNameBox.TextColor3 = Color3.new(1,1,1)
-PetNameBox.TextScaled = true
-PetNameBox.Parent = MainFrame
+local btn = Instance.new("TextButton")
+btn.Size = UDim2.new(0.9,0,0,50)
+btn.Position = UDim2.new(0.05,0,0.5,0)
+btn.Text = "СПАВНИТЬ"
+btn.BackgroundColor3 = Color3.fromRGB(150,0,0)
+btn.Parent = frame
 
-local AmountBox = Instance.new("TextBox")
-AmountBox.Size = UDim2.new(0.85, 0, 0, 50)
-AmountBox.Position = UDim2.new(0.075, 0, 0.42, 0)
-AmountBox.Text = "1"
-AmountBox.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-AmountBox.TextColor3 = Color3.new(1,1,1)
-AmountBox.TextScaled = true
-AmountBox.Parent = MainFrame
-
-local SpawnButton = Instance.new("TextButton")
-SpawnButton.Size = UDim2.new(0.85, 0, 0, 60)
-SpawnButton.Position = UDim2.new(0.075, 0, 0.65, 0)
-SpawnButton.BackgroundColor3 = Color3.fromRGB(150, 20, 20)
-SpawnButton.Text = "СПАВНИТЬ v2.6"
-SpawnButton.TextColor3 = Color3.new(1,1,1)
-SpawnButton.TextScaled = true
-SpawnButton.Parent = MainFrame
-
-SpawnButton.MouseButton1Click:Connect(function()
-    SpawnPetFixed(PetNameBox.Text, AmountBox.Text)
+btn.MouseButton1Click:Connect(function()
+    TrySpawn(box.Text)
 end)
 
-print("[v2.6] Готово. Попробуй.")
+print("v2.7 готов. Попробуй.")
