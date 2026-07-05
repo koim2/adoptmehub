@@ -1,108 +1,93 @@
--- =============================================
--- Adopt Me Pet Spawner v2.4 - by Bin
--- =============================================
+-- Bin's Adopt Me Pet Spawner v3.1 (Inspired by working one)
 print("========================================")
-print("Adopt Me Pet Spawner v2.4 ЗАПУЩЕН")
-print("Автор: Bin")
-print("Статус: Anti-Detection mode")
+print("Bin's Private Spawner v3.1 ЗАПУЩЕН")
+print("Вдохновлено рабочим скриптом")
 print("========================================")
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
 
-local function SpawnPetV2(petName, amount)
-    amount = math.min(tonumber(amount) or 1, 5)
-    print("[v2.4] Запуск спавна " .. amount .. "x " .. petName)
+local function FireAllRemotes(petName, tier)
+    tier = tier or "Legendary"
     
-    for i = 1, amount do
-        pcall(function()
-            -- Более точные аргументы для Adopt Me
-            local args1 = {
-                [1] = petName,
-                [2] = "Spawn",
-                [3] = true,           -- bypass flag
-                [4] = LocalPlayer.Character and LocalPlayer.Character.HumanoidRootPart.CFrame or CFrame.new(0,0,0),
-                [5] = "MegaNeon"
-            }
-            
-            local args2 = {
-                [1] = "GivePetRequest",
-                [2] = {
-                    PetName = petName,
-                    Tier = "Legendary",
-                    IsNeon = true,
-                    IsMega = true
-                }
-            }
-            
-            -- Ищем и стреляем во все возможные remotes
-            for _, remote in pairs(ReplicatedStorage:GetDescendants()) do
-                if remote:IsA("RemoteEvent") then
-                    pcall(function() remote:FireServer(unpack(args1)) end)
-                    pcall(function() remote:FireServer(unpack(args2)) end)
-                    pcall(function() remote:FireServer(petName, "Add", 1) end)
-                end
+    local payloads = {
+        {PetName = petName, Tier = tier, Action = "GivePet"},
+        {["Pet"] = petName, ["Type"] = "Legendary", ["Bypass"] = true},
+        {1 = petName, 2 = tier, 3 = true}
+    }
+    
+    for _, remote in pairs(ReplicatedStorage:GetDescendants()) do
+        if remote:IsA("RemoteEvent") then
+            for _, payload in pairs(payloads) do
+                pcall(function()
+                    remote:FireServer(payload)
+                    remote:FireServer(unpack(payload))
+                end)
             end
-        end)
-        
-        wait(1.2) -- увеличил задержку
+        end
     end
-    
-    print("[v2.4] Спавн завершён. Жди 5-10 секунд и проверь инвентарь.")
 end
 
--- GUI (v2.4)
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "BinPetSpawner_v2_4"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.Parent = LocalPlayer.PlayerGui
+local function SpawnPet(name, count, tier)
+    count = math.min(tonumber(count) or 1, 2)
+    print("[v3.1] Спавн " .. count .. "x " .. name)
+    
+    for i = 1, count do
+        FireAllRemotes(name, tier)
+        wait(1.5)
+    end
+    print("[v3.1] Готово. Проверь инвентарь.")
+end
 
-local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 450, 0, 340)
-MainFrame.Position = UDim2.new(0.5, -225, 0.5, -170)
-MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-MainFrame.Parent = ScreenGui
+-- GUI
+local sg = Instance.new("ScreenGui")
+sg.ResetOnSpawn = false
+sg.Parent = LocalPlayer.PlayerGui
 
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 50)
-Title.BackgroundColor3 = Color3.fromRGB(80, 0, 0)
-Title.Text = "Adopt Me Pet Spawner v2.4"
-Title.TextColor3 = Color3.fromRGB(255, 90, 90)
-Title.TextScaled = true
-Title.Parent = MainFrame
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 400, 0, 320)
+frame.Position = UDim2.new(0.5, -200, 0.5, -160)
+frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+frame.Parent = sg
 
-local PetNameBox = Instance.new("TextBox")
-PetNameBox.Size = UDim2.new(0.85, 0, 0, 50)
-PetNameBox.Position = UDim2.new(0.075, 0, 0.22, 0)
-PetNameBox.PlaceholderText = "Название пета"
-PetNameBox.Text = ""
-PetNameBox.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-PetNameBox.TextColor3 = Color3.new(1,1,1)
-PetNameBox.TextScaled = true
-PetNameBox.Parent = MainFrame
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1,0,0,50)
+title.Text = "Bin's Spawner v3.1"
+title.BackgroundColor3 = Color3.fromRGB(130, 0, 0)
+title.TextColor3 = Color3.new(1,1,1)
+title.TextScaled = true
+title.Parent = frame
 
-local AmountBox = Instance.new("TextBox")
-AmountBox.Size = UDim2.new(0.85, 0, 0, 50)
-AmountBox.Position = UDim2.new(0.075, 0, 0.42, 0)
-AmountBox.PlaceholderText = "Количество"
-AmountBox.Text = "1"
-AmountBox.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-AmountBox.TextColor3 = Color3.new(1,1,1)
-AmountBox.TextScaled = true
-AmountBox.Parent = MainFrame
+local petBox = Instance.new("TextBox")
+petBox.Size = UDim2.new(0.9,0,0,45)
+petBox.Position = UDim2.new(0.05,0,0.2,0)
+petBox.PlaceholderText = "Pet Name"
+petBox.Parent = frame
 
-local SpawnButton = Instance.new("TextButton")
-SpawnButton.Size = UDim2.new(0.85, 0, 0, 60)
-SpawnButton.Position = UDim2.new(0.075, 0, 0.65, 0)
-SpawnButton.BackgroundColor3 = Color3.fromRGB(140, 10, 10)
-SpawnButton.Text = "СПАВНИТЬ ПЕТОВ"
-SpawnButton.TextColor3 = Color3.new(1,1,1)
-SpawnButton.TextScaled = true
-SpawnButton.Parent = MainFrame
+local countBox = Instance.new("TextBox")
+countBox.Size = UDim2.new(0.9,0,0,45)
+countBox.Position = UDim2.new(0.05,0,0.38,0)
+countBox.Text = "1"
+countBox.Parent = frame
 
-SpawnButton.MouseButton1Click:Connect(function()
-    SpawnPetV2(PetNameBox.Text, AmountBox.Text)
+local tierBox = Instance.new("TextBox")
+tierBox.Size = UDim2.new(0.9,0,0,45)
+tierBox.Position = UDim2.new(0.05,0,0.56,0)
+tierBox.Text = "Legendary"
+tierBox.Parent = frame
+
+local btn = Instance.new("TextButton")
+btn.Size = UDim2.new(0.9,0,0,55)
+btn.Position = UDim2.new(0.05,0,0.75,0)
+btn.Text = "SPAWN"
+btn.BackgroundColor3 = Color3.fromRGB(160, 10, 10)
+btn.TextColor3 = Color3.new(1,1,1)
+btn.TextScaled = true
+btn.Parent = frame
+
+btn.MouseButton1Click:Connect(function()
+    SpawnPet(petBox.Text, countBox.Text, tierBox.Text)
 end)
 
-print("[v2.4] GUI загружена. Попробуй сейчас.")
+print("[v3.1] Готово. Попробуй сейчас.")
