@@ -1,7 +1,7 @@
--- adoptme_packet_interceptor.lua
+-- adoptme_packet_interceptor_v2.1.lua
 -- Strategy: Hook __namecall to intercept valid pet-spawn packets, cache them, and allow replay.
--- This bypasses the need to guess remote names or payload structures.
--- We listen for the game's own calls, capture the arguments, and replay them.
+-- Version: 2.1 (Architecture switch to packet interception + UI version label + fixed parenting crash)
+-- Usage: Run script. Interact with game (open pet menu, hatch egg). Click "REPLAY LAST PACKET" to fire captured args.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -35,7 +35,7 @@ local function IsRelevantPacket(args)
     return false
 end
 
--- ===================== UI SETUP (Fixed) =====================
+-- ===================== UI SETUP =====================
 local function CreateUI()
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "PacketInterceptor"
@@ -50,14 +50,26 @@ local function CreateUI()
     frame.BorderSizePixel = 0
     frame.Parent = screenGui
 
+    -- TITLE WITH VERSION
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(1, 0, 0, 30)
     title.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-    title.Text = "Packet Interceptor"
+    title.Text = "Packet Interceptor v2.1"
     title.TextColor3 = Color3.fromRGB(255, 255, 255)
     title.Font = Enum.Font.GothamBold
     title.TextSize = 16
     title.Parent = frame
+
+    -- BUILD INFO FOOTER
+    local footer = Instance.new("TextLabel")
+    footer.Size = UDim2.new(1, 0, 0, 15)
+    footer.Position = UDim2.new(0, 0, 1, -15)
+    footer.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    footer.Text = "Build: 2026-07-10 | Arch: Intercept-Replay"
+    footer.TextColor3 = Color3.fromRGB(100, 100, 100)
+    footer.Font = Enum.Font.Gotham
+    footer.TextSize = 9
+    footer.Parent = frame
 
     local replayBtn = Instance.new("TextButton")
     replayBtn.Size = UDim2.new(1, -20, 0, 40)
@@ -151,7 +163,7 @@ local function Init()
     wait(1)
     local ui, statusLabel = CreateUI()
     _G.PacketInterceptorStatus = statusLabel
-    print("[+] Packet Interceptor initialized. Interact with pets/inventory to capture packets.")
+    print("[+] Packet Interceptor v2.1 initialized. Interact with pets/inventory to capture packets.")
 end
 
 Init()
